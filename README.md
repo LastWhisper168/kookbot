@@ -23,7 +23,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/LastWhisper168/koobbot.git
+git clone https://github.com/LastWhisper168/kookbot.git
 cd kookbot
 
 # 安装依赖
