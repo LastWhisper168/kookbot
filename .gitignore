@@ -1,0 +1,313 @@
+# ===========================
+# KOOK Bot 项目 .gitignore 文件
+# ===========================
+# 此文件用于指定 Git 版本控制系统应该忽略的文件和目录
+# 防止敏感信息、临时文件和不必要的文件被提交到 GitHub
+
+# ===========================
+# Python 相关忽略文件
+# ===========================
+
+# Python 字节码和优化文件
+# 这些是 Python 运行时自动生成的编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C 扩展文件
+*.so
+
+# Python 包分发和安装相关
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller 打包文件
+*.manifest
+*.spec
+
+# pip 安装日志
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 单元测试和代码覆盖率报告
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ===========================
+# 环境变量和配置文件（重要！）
+# ===========================
+
+# 环境变量文件 - 包含 API 密钥和敏感信息
+# 绝对不要提交这些文件到公共仓库！
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# 配置文件备份
+*.bak
+config.backup/
+config.old
+
+# ===========================
+# 虚拟环境目录
+# ===========================
+
+# Python 虚拟环境
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+virtualenv/
+.venv/
+
+# Conda 环境
+.conda/
+conda-env/
+
+# ===========================
+# IDE 和编辑器配置
+# ===========================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+# 但保留这些有用的配置文件（如果需要共享）
+!.vscode/settings.json.example
+!.vscode/tasks.json.example
+!.vscode/launch.json.example
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Vim
+*.swp
+*.swo
+*.swn
+*~
+.*.sw[a-z]
+
+# Emacs
+*~
+\#*\#
+.\#*
+.emacs.desktop
+.emacs.desktop.lock
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ===========================
+# 操作系统生成的文件
+# ===========================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# ===========================
+# 项目特定文件（KOOK Bot）
+# ===========================
+
+# 用户数据 - 包含隐私信息
+data/users.json
+data/knowledge.json
+data/*.json
+data/backup/
+# 但保留示例文件
+!data/users.example.json
+!data/knowledge.example.json
+
+# 日志文件 - 可能包含敏感信息
+logs/
+*.log
+*.log.*
+log.txt
+error.log
+debug.log
+
+# 缓存和临时文件
+cache/
+.cache/
+*.cache
+tmp/
+temp/
+*.tmp
+*.temp
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+database/
+
+# 机器人会话和运行时文件
+sessions/
+*.session
+runtime/
+.bot_state
+
+# API 缓存
+api_cache/
+response_cache/
+
+# ===========================
+# 安全相关文件
+# ===========================
+
+# SSL 证书和密钥
+*.pem
+*.key
+*.crt
+*.cert
+*.pfx
+certificates/
+ssl/
+
+# 密码和凭证文件
+passwords.txt
+credentials.json
+secrets/
+
+# ===========================
+# 备份和归档文件
+# ===========================
+
+backup/
+backups/
+*.backup
+*.bak
+*.old
+archive/
+
+# 压缩文件
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ===========================
+# 测试和开发文件
+# ===========================
+
+# 测试脚本和数据
+test_*.py
+tests/test_data/
+tests/coverage/
+.test_env
+
+# 开发时的临时脚本
+scratch.py
+debug.py
+temp_*.py
+
+# ===========================
+# 文档构建输出
+# ===========================
+
+docs/_build/
+docs/_static/
+docs/_templates/
+site/
+
+# ===========================
+# 依赖和包管理
+# ===========================
+
+# Node.js（如果有前端部分）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Python 依赖
+# 注意：requirements.txt 应该被提交
+# 但本地安装的包不应该被提交
+
+# ===========================
+# 其他需要忽略的文件
+# ===========================
+
+# 私有和内部文档
+private/
+confidential/
+internal/
+TODO.md
+NOTES.md
+
+# 大文件
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+*.mkv
+
+# 模型文件（如果使用本地 AI 模型）
+models/
+*.model
+*.ckpt
+*.pth
+*.h5
+*.pkl
