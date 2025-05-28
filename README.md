@@ -2,6 +2,11 @@
 
 一个基于[khl.py](https://github.com/TWT233/khl.py)的KOOK平台智能聊天机器人，采用多Agent架构设计，支持知识检索、情感分析和上下文对话。
 
+
+## 交流频道
+https://kook.vip/izhvYt
+
+
 ## 项目简介
 
 本项目是一个运行在KOOK（开黑啦）平台上的AI聊天机器人，具有以下特点：
@@ -140,6 +145,3 @@ furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 ```
-
-## 交流频道
-https://kook.vip/izhvYt
