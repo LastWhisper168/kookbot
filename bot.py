@@ -41,7 +41,7 @@ if not BOT_TOKEN or not PRIMARY_API_KEY or not PRIMARY_API_URL:
 
 # 初始化 Bot
 bot = Bot(token=BOT_TOKEN)
-console.print("[green]KOOK Bot 已初始化[/green]")
+console.print("[green]KOOK 机器人已初始化[/green]")
 
 # Bot 自身状态
 bot_state = {
@@ -150,21 +150,6 @@ class LLMClient:
     async def close(self):
         if self.session:
             await self.session.close()
-        if self.session is None:
-            import ssl, certifi
-            ssl_ctx = ssl.create_default_context(cafile=certifi.where())
-            connector = aiohttp.TCPConnector(ssl=ssl_ctx)
-            self.session = aiohttp.ClientSession(connector=connector)
-        console.print(f"[magenta]调用模型: {self.model} at {self.url}[/magenta]")
-        headers = {"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
-        payload = {"model": self.model, "messages": messages}
-        async with self.session.post(f"{self.url}/chat/completions", headers=headers, json=payload) as resp:
-            resp.raise_for_status()
-            return await resp.json()
-
-    async def close(self):
-        if self.session:
-            await self.session.close()
 
 # --- 双智能体多Agent系统 ---
 from typing import Dict, Any, Optional, List
@@ -223,10 +208,10 @@ class DialogueAgent(Agent):
         self.llm = llm
 
     async def handle(self, payload):
-        persona = (
-            "你是“麦麦”，一个活泼、幽默、善于关心用户的二次元俏皮小女孩。"
-            "你的回复要带点俏皮、带 emoji，让人感觉像在和朋友聊天。"
-        )
+        persona = """你是"麦麦"，一个活泼、幽默、善于关心用户的二次元俏皮小女孩。
+你的回复要带点俏皮、带 emoji，让人感觉像在和朋友聊天。
+请使用纯文本回复，不要使用任何特殊格式标记、HTML或Markdown语法。
+不要使用[[]]()这样的标记，直接用纯文本表达所有内容。"""
         sys_prompt = persona + "\n参考信息：\n" + "\n".join(f"- {c}" for c in payload['contexts'])
         sys_prompt += f"\n用户情绪：{payload.get('emotion','neutral')}"
         messages = [{"role": "system", "content": sys_prompt}] + payload['history'] + [{"role": "user", "content": payload['text']}]
@@ -289,7 +274,7 @@ class Dispatcher:
 primary_llm = LLMClient(PRIMARY_API_KEY, PRIMARY_API_URL, PRIMARY_MODEL)
 if SECONDARY_API_KEY and SECONDARY_API_URL and SECONDARY_MODEL:
     secondary_llm = LLMClient(SECONDARY_API_KEY, SECONDARY_API_URL, SECONDARY_MODEL)
-    console.print(f"[yellow]第二模型: {SECONDARY_MODEL}[/yellow]")
+    console.print(f"[yellow]使用辅助模型: {SECONDARY_MODEL}[/yellow]")
 else:
     secondary_llm = primary_llm
     console.print(f"[yellow]使用主模型: {PRIMARY_MODEL}[/yellow]")
@@ -349,7 +334,7 @@ async def on_message(msg: Message):
     await message_semaphore.acquire()
     try:
         text_raw = msg.content.strip()
-        console.print(f"[debug] 收到: '{text_raw}'")
+        console.print(f"[debug] 收到消息: '{text_raw}'")
         if msg.author.bot:
             return
         uid = str(msg.author.id)
@@ -372,12 +357,31 @@ async def on_message(msg: Message):
             # 群聊中的唤醒逻辑
             console.print(f"[blue]群聊消息，检查唤醒条件[/blue]")
             triggered = '麦麦' in text_raw
-            if triggered:
+            # 检查是否被@
+            mentioned = False
+            if hasattr(msg, 'mention') and msg.mention:
+                # 添加调试日志
+                console.print(f"[debug] BOT_ID={BOT_ID}, msg.mention={msg.mention}")
+                # 尝试使用BOT_ID进行比较（如果有效）
+                if BOT_ID and not BOT_ID.startswith('#'):
+                    mentioned = (BOT_ID in msg.mention or 
+                                str(BOT_ID) in msg.mention or 
+                                (int(BOT_ID) in msg.mention if str(BOT_ID).isdigit() else False))
+            
+            # 备用方法：直接检查消息内容中的@标记
+            if not mentioned and "(met)" in text_raw:
+                console.print("[yellow]使用备用方法检测@: 成功[/yellow]")
+                mentioned = True
+            if triggered or mentioned:
                 last_wake[uid] = now
             in_window = uid in last_wake and (now - last_wake[uid] <= WAKE_TIMEOUT)
             random_join = random.random() < 0.1
-            is_wake = triggered or in_window or random_join
-            console.print(f"[debug] triggered={triggered}, in_window={in_window}, random_join={random_join}, is_wake={is_wake}")
+            is_wake = triggered or in_window or random_join or mentioned
+            console.print(f"[debug] 关键词唤醒: {'是' if triggered else '否'}, " +
+                         f"时间窗口内: {'是' if in_window else '否'}, " +
+                         f"随机参与: {'是' if random_join else '否'}, " + 
+                         f"被@唤醒: {'是' if mentioned else '否'}, " +
+                         f"最终唤醒: {'是' if is_wake else '否'}")
         
         if not is_wake:
             return
@@ -425,7 +429,7 @@ async def on_message(msg: Message):
         message_semaphore.release()
 
 if __name__=='__main__':
-    console.print("[bold green]KOOK Bot 正在启动...[/bold green]")
+    console.print("[bold green]KOOK 机器人正在启动...[/bold green]")
     try:
         bot.run()
     finally:
