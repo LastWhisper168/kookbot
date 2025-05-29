@@ -7,28 +7,25 @@ class InsultDetectionAgent:
     辱骂检测Agent - 检测用户是否在辱骂机器人，并生成反击回复
     """
     
-    def __init__(self):
-        # 辱骂关键词列表（可以根据需要扩展）
+    def __init__(self, llm=None):
+        self.llm = llm
+        # 辱骂关键词列表（精确匹配，避免误判）
         self.insult_keywords = [
             # 直接骂人的词
             "傻逼", "傻b", "sb", "煞笔", "沙比", "傻比", "智障", "脑残", "白痴", "蠢货", "笨蛋",
-            "废物", "垃圾", "辣鸡", "拉圾", "狗屎", "屎", "死妈", "去死", "滚", "草你", "操你",
-            "cnm", "nmsl", "弱智", "残废", "蠢", "笨", "脑子有病", "有病", "神经病", "精神病",
-            "畜生", "贱", "婊", "妓", "狗", "猪", "蛆", "寄生虫", "败类", "人渣", "混蛋",
+            "废物", "垃圾", "辣鸡", "拉圾", "狗屎", "死妈", "去死", "滚", "草你", "操你",
+            "cnm", "nmsl", "弱智", "残废", "脑子有病", "神经病", "精神病",
+            "畜生", "贱人", "婊子", "寄生虫", "败类", "人渣", "混蛋",
             
             # 针对AI的特定辱骂
-            "破机器人", "破ai", "垃圾ai", "智障机器人", "废物机器人", "没用", "没脑子",
-            "人工智障", "人工弱智", "弱智ai", "脑残ai", "垃圾程序", "破程序", "bug",
+            "破机器人", "破ai", "垃圾ai", "智障机器人", "废物机器人", "没脑子",
+            "人工智障", "人工弱智", "弱智ai", "脑残ai", "垃圾程序", "破程序",
             
-            # 其他贬低性词汇
-            "闭嘴", "给爷死", "爬", "滚蛋", "fuck", "shit", "damn", "bitch", "asshole",
+            # 其他明确的贬低性词汇
+            "闭嘴", "给爷死", "滚蛋", "fuck you", "shit", "damn you", "bitch", "asshole",
             
-            # 家人相关辱骂
-            "你妈", "你爸", "你全家", "你祖宗", "你家", "死妈", "死爸", "死全家",
-            "妈死", "爸死", "全家死", "操妈", "草妈", "日妈", "艹妈",
-            
-            # 变形和拼音
-            "cao", "ri", "ma", "si", "gun", "sha", "bi", "zhi", "zhang", "fei", "wu"
+            # 家人相关辱骂（完整词汇）
+            "你妈死", "你爸死", "你全家死", "死全家", "操你妈", "草你妈", "日你妈", "艹你妈"
         ]
         
         # 反击回复模板
@@ -88,29 +85,33 @@ class InsultDetectionAgent:
         """检测文本是否包含辱骂内容"""
         text_lower = text.lower().replace(" ", "")  # 移除空格避免绕过检测
         
-        # 检查是否包含辱骂关键词
+        # 先检查文本长度，太短的文本（如单个字符）不太可能是辱骂
+        if len(text.strip()) < 2:
+            return False
+        
+        # 检查是否包含明确的辱骂关键词
         for keyword in self.insult_keywords:
             if keyword.lower() in text_lower:
                 return True
         
-        # 检查一些辱骂模式和组合
+        # 检查明确的辱骂模式和组合（更精确的正则）
         insult_patterns = [
-            r'你.*妈.*死', r'你.*妈.*什么', r'操.*你.*妈', r'草.*你.*妈', 
-            r'你.*爸.*死', r'你.*全家.*死', r'去.*死', r'滚.*蛋',
-            r'你.*傻', r'你.*蠢', r'你.*笨', r'你.*废', r'你.*垃圾',
-            r'.*去死.*', r'.*滚.*', r'.*闭嘴.*', r'.*shut.*up.*',
+            r'你.*妈.*死', r'你.*妈.*什么.*死', r'操.*你.*妈', r'草.*你.*妈', 
+            r'你.*爸.*死', r'你.*全家.*死', r'去.*死.*吧', r'滚.*蛋',
+            r'你.*就是.*傻', r'你.*真.*蠢', r'你.*很.*笨', r'你.*是.*废物', r'你.*就是.*垃圾',
+            r'.*傻逼.*', r'.*智障.*', r'.*脑残.*', r'.*废物.*', r'.*垃圾.*',
             r'操.*你', r'草.*你', r'日.*你', r'艹.*你',
-            r'你.*sb', r'你.*煞笔', r'你.*智障', r'你.*脑残'
+            r'你.*sb.*', r'你.*煞笔.*', r'.*cnm.*', r'.*nmsl.*'
         ]
         
         for pattern in insult_patterns:
             if re.search(pattern, text):
                 return True
         
-        # 检查连续的脏话组合
+        # 检查连续的脏话组合（需要特定的组合才算辱骂）
         dirty_combinations = [
-            ("你", "妈"), ("操", "你"), ("草", "你"), ("去", "死"),
-            ("什么", "死"), ("妈", "死"), ("全家", "死")
+            ("操", "你", "妈"), ("草", "你", "妈"), ("你", "妈", "死"),
+            ("去", "死", "吧"), ("你", "全家", "死"), ("你", "就是", "傻逼")
         ]
         
         for combo in dirty_combinations:
@@ -143,6 +144,44 @@ class InsultDetectionAgent:
                 
         return False
     
+    async def generate_sunba_counter_response(self, user_text: str, insult_level: str) -> str:
+        """使用LLM生成孙吧老哥风格的反击回复"""
+        if not self.llm:
+            # 如果没有LLM，使用预设回复
+            return self.generate_counter_response(user_text)
+        
+        # 构建孙吧风格的系统提示
+        system_prompt = f"""你现在要模仿孙笑川吧（孙吧）老哥的说话风格进行反击。
+
+孙吧老哥特点：
+1. 说话很冲，敢于硬刚，不怂
+2. 经常用"焯"、"给爷"、"你叫什么"、"你急了"等口头禅
+3. 喜欢用"哥"、"铁子"、"家人们"等称呼
+4. 说话带有强烈的个人色彩和攻击性
+5. 经常用"这就是你的实力？"、"就这？"等嘲讽语句
+6. 会用一些网络梗和方言
+7. 反击时会直接怼回去，不留情面
+
+用户对你说了: "{user_text}"
+
+请用孙吧老哥的风格狠狠反击回去，要有孙吧的那种狂妄和嚣张感，但不要过于极端。"""
+
+        try:
+            # 调用LLM生成回复
+            messages = [{"role": "system", "content": system_prompt}]
+            resp = await self.llm.chat(messages)
+            response = resp['choices'][0]['message']['content'].strip()
+            
+            # 确保回复不为空
+            if not response:
+                return self.generate_counter_response(user_text)
+                
+            return response
+            
+        except Exception as e:
+            # LLM调用失败，使用预设回复
+            return self.generate_counter_response(user_text)
+
     def generate_counter_response(self, user_text: str) -> str:
         """生成反击回复"""
         if self.is_extreme_insult(user_text):
@@ -157,11 +196,15 @@ class InsultDetectionAgent:
         text = payload.get('text', '')
         
         if self.is_insult(text):
-            response = self.generate_counter_response(text)
+            insult_level = 'extreme' if self.is_extreme_insult(text) else 'normal'
+            
+            # 使用LLM生成孙吧风格的反击回复
+            response = await self.generate_sunba_counter_response(text, insult_level)
+            
             return {
                 'is_insult': True,
                 'response': response,
-                'insult_level': 'extreme' if self.is_extreme_insult(text) else 'normal'
+                'insult_level': insult_level
             }
         
         return {

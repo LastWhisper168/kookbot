@@ -1,16 +1,21 @@
 """
 通用 API 客户端模块
 提供带有重试机制、异常处理和日志记录的 HTTP 请求封装
-专门用于处理 https://api.zmone.me/v1 接口调用
+从 .env 文件读取第三方API配置
 """
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any, Dict, Optional
 import aiohttp
 import json
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -24,17 +29,18 @@ class ApiResponse:
     status_code: int = None
     response_time: float = None
 
-class ZmoneApiClient:
+class ThirdPartyApiClient:
     """
-    Zmone API 客户端
-    支持指数退避重试、超时控制、异常处理
+    第三方 API 客户端
+    从 .env 文件读取配置
     """
     
-    def __init__(self, base_url: str = "https://api.zmone.me/v1", 
-                 timeout: int = 30, max_retries: int = 3):
-        self.base_url = base_url.rstrip('/')
-        self.timeout = timeout
-        self.max_retries = max_retries
+    def __init__(self):
+        # 从 .env 读取配置
+        self.base_url = os.getenv("THIRD_PARTY_API_URL", "https://api.zmone.me/v1").rstrip('/')
+        self.api_key = os.getenv("THIRD_PARTY_API_KEY", "")
+        self.timeout = int(os.getenv("THIRD_PARTY_API_TIMEOUT", "30"))
+        self.max_retries = int(os.getenv("THIRD_PARTY_API_MAX_RETRIES", "3"))
         self.session: Optional[aiohttp.ClientSession] = None
         
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -69,6 +75,12 @@ class ZmoneApiClient:
             'Content-Type': 'application/json',
             'User-Agent': 'KHL-Bot-ApiClient/1.0'
         }
+        
+        # 如果有API密钥，添加认证头
+        if self.api_key:
+            default_headers['Authorization'] = f'Bearer {self.api_key}'
+        
+        # 合并用户提供的请求头
         if headers:
             default_headers.update(headers)
         
@@ -194,14 +206,14 @@ class ZmoneApiClient:
             logger.info("API 客户端会话已关闭")
 
 # 全局 API 客户端实例
-_api_client = ZmoneApiClient()
+_api_client = ThirdPartyApiClient()
 
-async def zmone_api_call(endpoint: str, method: str = 'GET', 
-                        data: Optional[Dict] = None,
-                        headers: Optional[Dict[str, str]] = None,
-                        params: Optional[Dict] = None) -> ApiResponse:
+async def third_party_api_call(endpoint: str, method: str = 'GET', 
+                              data: Optional[Dict] = None,
+                              headers: Optional[Dict[str, str]] = None,
+                              params: Optional[Dict] = None) -> ApiResponse:
     """
-    统一的 API 调用函数
+    统一的第三方 API 调用函数
     
     Args:
         endpoint: API 端点 (如: '/users', '/data')
@@ -214,7 +226,7 @@ async def zmone_api_call(endpoint: str, method: str = 'GET',
         ApiResponse: 响应结果
         
     Example:
-        >>> response = await zmone_api_call('/users', 'GET')
+        >>> response = await third_party_api_call('/users', 'GET')
         >>> if response.success:
         >>>     print(response.data)
         >>> else:
@@ -239,21 +251,116 @@ async def zmone_api_call(endpoint: str, method: str = 'GET',
 # 便捷函数
 async def get_user_info(user_id: str) -> ApiResponse:
     """获取用户信息"""
-    return await zmone_api_call(f'/users/{user_id}')
+    return await third_party_api_call(f'/users/{user_id}')
 
 async def create_user(user_data: Dict) -> ApiResponse:
     """创建用户"""
-    return await zmone_api_call('/users', 'POST', data=user_data)
+    return await third_party_api_call('/users', 'POST', data=user_data)
 
 async def update_user(user_id: str, user_data: Dict) -> ApiResponse:
     """更新用户信息"""
-    return await zmone_api_call(f'/users/{user_id}', 'PUT', data=user_data)
+    return await third_party_api_call(f'/users/{user_id}', 'PUT', data=user_data)
 
 async def delete_user(user_id: str) -> ApiResponse:
     """删除用户"""
-    return await zmone_api_call(f'/users/{user_id}', 'DELETE')
+    return await third_party_api_call(f'/users/{user_id}', 'DELETE')
 
 # 资源清理函数
 async def cleanup_api_client():
     """清理 API 客户端资源"""
     await _api_client.close()
+
+# === LLM专用API调用函数 ===
+
+async def llm_chat_completion(model: str, messages: list, 
+                            api_key: str, **kwargs) -> ApiResponse:
+    """
+    LLM聊天完成API调用
+    
+    Args:
+        model: 模型名称
+        messages: 消息列表
+        api_key: API密钥
+        **kwargs: 其他参数(temperature, max_tokens等)
+        
+    Returns:
+        ApiResponse: LLM响应结果
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    data = {
+        "model": model,
+        "messages": messages,
+        **kwargs
+    }
+    
+    return await zmone_api_call(
+        endpoint="/chat/completions",
+        method="POST",
+        data=data,
+        headers=headers
+    )
+
+async def llm_embeddings(model: str, input_text: str, 
+                        api_key: str) -> ApiResponse:
+    """
+    获取文本嵌入向量
+    
+    Args:
+        model: 嵌入模型名称
+        input_text: 输入文本
+        api_key: API密钥
+        
+    Returns:
+        ApiResponse: 嵌入向量响应
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    data = {
+        "model": model,
+        "input": input_text
+    }
+    
+    return await zmone_api_call(
+        endpoint="/embeddings",
+        method="POST", 
+        data=data,
+        headers=headers
+    )
+
+# === 通用第三方服务API ===
+
+async def webhook_call(webhook_url: str, data: dict, 
+                      headers: dict = None) -> ApiResponse:
+    """
+    通用Webhook调用
+    
+    Args:
+        webhook_url: Webhook完整URL
+        data: 发送数据
+        headers: 请求头
+        
+    Returns:
+        ApiResponse: Webhook响应
+    """
+    # 创建临时客户端实例，使用自定义URL
+    temp_client = ZmoneApiClient(base_url=webhook_url.rsplit('/', 1)[0])
+    endpoint = '/' + webhook_url.rsplit('/', 1)[1]
+    
+    try:
+        return await temp_client.post(endpoint, data, headers)
+    finally:
+        await temp_client.close()
+
+async def health_check() -> ApiResponse:
+    """
+    API健康检查
+    
+    Returns:
+        ApiResponse: 健康状态响应
+    """
+    return await zmone_api_call("/health", "GET")

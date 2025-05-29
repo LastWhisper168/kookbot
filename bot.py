@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.markup import escape
 from dotenv import load_dotenv
 # 导入 API 客户端
-from api_client import zmone_api_call, cleanup_api_client, ApiResponse
+from api_client import third_party_api_call, cleanup_api_client, ApiResponse
 # 导入新的Agent类
 from agents.thinking_agent import ThinkingAgent
 from agents.advanced_emotion_agent import AdvancedEmotionAgent
@@ -81,6 +81,27 @@ bot_state = {
 # 唤醒后保持对话状态3分钟
 last_wake = {}
 WAKE_TIMEOUT = 180  # seconds
+
+async def cleanup_expired_conversations():
+    """清理过期的连续对话状态"""
+    while True:
+        try:
+            current_time = time.time()
+            expired_users = []
+            
+            for uid, wake_time in last_wake.items():
+                if current_time - wake_time > WAKE_TIMEOUT:
+                    expired_users.append(uid)
+            
+            for uid in expired_users:
+                del last_wake[uid]
+                console.print(f"[dim]🕐 用户 {uid} 的连续对话状态已过期[/dim]")
+            
+            # 每30秒清理一次
+            await asyncio.sleep(30)
+        except Exception as e:
+            console.print(f"[red]清理过期对话状态时出错: {e}[/red]")
+            await asyncio.sleep(30)
 
 # 弹性并发控制：根据平均延迟自动伸缩
 from collections import deque
@@ -435,7 +456,7 @@ agents = {
     'thinking': ThinkingAgent(primary_llm),
     'emotion': AdvancedEmotionAgent(primary_llm),
     'personality': PersonalityAgent(),
-    'insult_detection': InsultDetectionAgent()
+    'insult_detection': InsultDetectionAgent(primary_llm)
 }
 
 # 初始化调度器
@@ -461,31 +482,47 @@ async def handle_message(msg: Message):
         return
       # 添加调试信息 - 显示频道类型
     console.print(f"[cyan]消息类型: {msg.channel_type}, 消息内容: {text[:30]}...[/cyan]")
-      
-    # 检查是否被@或者在私聊或者使用唤醒词"麦麦"
+        # 检查触发条件
     is_mentioned = f"(met){BOT_ID}(met)" in msg.content
     # 两种方式判断是否是私信
     is_private = str(msg.channel_type) == "ChannelPrivacyTypes.PERSON" or msg.channel_type == "PERSON"
     is_wakeword = "麦麦" in text
     
+    # 获取用户ID，用于连续对话管理
+    uid = msg.author_id
+    current_time = time.time()
+    
+    # 检查是否在连续对话状态中
+    is_in_conversation = uid in last_wake and (current_time - last_wake[uid]) <= WAKE_TIMEOUT
+    
     # 添加调试信息
     if is_private:
-        console.print(f"[yellow]收到私信: {text} (来自: {msg.author_id})[/yellow]")
+        console.print(f"[yellow]📱 收到私信: {text[:50]}... (来自: {uid})[/yellow]")
     else:
-        console.print(f"[blue]非私信消息，是否被@: {is_mentioned}, 是否包含唤醒词: {is_wakeword}[/blue]")
+        console.print(f"[blue]💬 群聊消息 - @机器人: {is_mentioned}, 唤醒词: {is_wakeword}, 连续对话: {is_in_conversation}[/blue]")
     
-    # 如果没有被@且不是私聊且没有使用唤醒词，检查是否在唤醒状态
-    if not is_mentioned and not is_private and not is_wakeword:
-        uid = msg.author_id
-        if uid not in last_wake:
-            return
-        if time.time() - last_wake[uid] > WAKE_TIMEOUT:
-            del last_wake[uid]
-            return
+    # 判断是否应该响应消息
+    should_respond = (
+        is_private or           # 私聊总是响应
+        is_mentioned or         # 被@时响应
+        is_wakeword or         # 包含唤醒词时响应
+        is_in_conversation     # 在连续对话状态中响应
+    )
     
-    # 更新唤醒时间
-    if is_mentioned or is_private or is_wakeword:
-        last_wake[msg.author_id] = time.time()
+    if not should_respond:
+        return  # 不满足响应条件，忽略消息
+    
+    # 更新唤醒时间（任何触发响应的情况都会延长连续对话时间）
+    last_wake[uid] = current_time
+    
+    # 显示连续对话状态
+    if is_in_conversation:
+        remaining_time = int(WAKE_TIMEOUT - (current_time - last_wake[uid]) + WAKE_TIMEOUT)  # 重新计算剩余时间
+        console.print(f"[green]🔄 连续对话模式: 用户 {uid} (剩余时间: {remaining_time}秒)[/green]")
+    elif is_mentioned or is_wakeword:
+        console.print(f"[green]🎯 触发对话: 用户 {uid} 进入连续对话模式 ({WAKE_TIMEOUT}秒)[/green]")
+    elif is_private:
+        console.print(f"[green]💌 私聊模式: 用户 {uid} (持续响应)[/green]")
     
     # 清理@标记
     text = text.replace(f"(met){BOT_ID}(met)", "").strip()
@@ -566,21 +603,28 @@ async def handle_message(msg: Message):
 @bot.on_startup
 async def on_startup(bot):
     """Bot 启动时执行"""
-    console.print("[green]Bot 正在启动...[/green]")
+    console.print("[green]🚀 Bot 正在启动...[/green]")
     
     # 初始化 MongoDB（如果启用）
     if mongodb_enabled:
         try:
             await init_mongodb(MONGODB_URI)
-            console.print("[green]MongoDB 已连接[/green]")
+            console.print("[green]📊 MongoDB 已连接[/green]")
             
             # 运行数据库迁移
             await run_migration()
-            console.print("[green]数据库迁移完成[/green]")
+            console.print("[green]🔄 数据库迁移完成[/green]")
         except Exception as e:
-            console.print(f"[yellow]MongoDB 连接失败: {e}，将使用本地存储[/yellow]")
+            console.print(f"[yellow]⚠️ MongoDB 连接失败: {e}，将使用本地存储[/yellow]")
     
-    console.print(f"[green]Bot 启动完成！并发限制: {MAX_CONCURRENCY}[/green]")
+    # 启动清理过期对话状态的后台任务
+    asyncio.create_task(cleanup_expired_conversations())
+    console.print("[green]🧹 对话状态清理任务已启动[/green]")
+    
+    console.print(f"[green]✅ Bot 启动完成！[/green]")
+    console.print(f"[cyan]📊 并发限制: {MAX_CONCURRENCY}[/cyan]")
+    console.print(f"[cyan]⏰ 连续对话超时: {WAKE_TIMEOUT}秒[/cyan]")
+    console.print(f"[cyan]💬 触发方式: @机器人 | 私聊 | 唤醒词'麦麦' | 连续对话[/cyan]")
 
 @bot.on_shutdown
 async def on_shutdown():
